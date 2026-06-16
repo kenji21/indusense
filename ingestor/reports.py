@@ -6,8 +6,7 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
-
-def incident_report_per_day_and_severity(df: pd.DataFrame) -> None:
+def incident_report_per_day_and_severity(df: pd.DataFrame) -> plt.Figure:
     data = df.copy()
     data["date"] = pd.to_datetime(data["date"])
     data["jour_semaine"] = data["date"].dt.dayofweek
@@ -30,10 +29,10 @@ def incident_report_per_day_and_severity(df: pd.DataFrame) -> None:
     ax.set_ylabel("Nombre d'incidents")
     ax.legend(title="Sévérité")
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
-def incident_report_per_week_and_severity(df: pd.DataFrame) -> None:
+def incident_report_per_week_and_severity(df: pd.DataFrame) -> plt.Figure:
     data = df.copy()
     data["date"] = pd.to_datetime(data["date"])
     data["semaine"] = data["date"].dt.isocalendar().week.astype(int)
@@ -55,10 +54,10 @@ def incident_report_per_week_and_severity(df: pd.DataFrame) -> None:
     ax.set_ylabel("Nombre d'incidents")
     ax.legend(title="Sévérité")
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
-def incident_report_per_shift(df: pd.DataFrame) -> None:
+def incident_report_per_shift(df: pd.DataFrame) -> plt.Figure:
     pivot = df.groupby(["shift", "severity"]).size().unstack(fill_value=0)
     pivot = pivot.reindex(columns=[1, 2, 3], fill_value=0)
 
@@ -78,10 +77,10 @@ def incident_report_per_shift(df: pd.DataFrame) -> None:
     ax.set_ylabel("Nombre d'incidents")
     ax.legend(title="Sévérité")
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
-def incident_report_per_operator_and_severity(df: pd.DataFrame) -> None:
+def incident_report_per_operator_and_severity(df: pd.DataFrame) -> plt.Figure:
     pivot = df.groupby(["operator_name", "severity"]).size().unstack(fill_value=0)
     pivot = pivot.reindex(columns=[1, 2, 3], fill_value=0)
 
@@ -101,4 +100,4 @@ def incident_report_per_operator_and_severity(df: pd.DataFrame) -> None:
     ax.set_ylabel("Nombre d'incidents")
     ax.legend(title="Sévérité")
     plt.tight_layout()
-    plt.show()
+    return fig

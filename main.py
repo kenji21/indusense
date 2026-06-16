@@ -1,5 +1,7 @@
 import sys
 
+import matplotlib.pyplot as plt
+
 from ingestor import *
 
 INCIDENTS_PATH = "data/releves_incidents.csv"
@@ -17,8 +19,9 @@ def ingest_incidents():
     print(f"  Doublons    : {df.duplicated().sum()}")
     print(f"  Valeurs NaN : {df.isnull().sum().sum()}")
     print(f"\nColonnes : {', '.join(df.columns.tolist())}")
-    incident_report_per_operator_and_severity(df)
-    incident_report_per_shift(df)
+    fig_operator = incident_report_per_operator_and_severity(df)
+    fig_shift = incident_report_per_shift(df)
+    plt.show()
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
