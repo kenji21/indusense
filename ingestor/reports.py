@@ -12,11 +12,27 @@ def incident_report_per_signal(df: pd.DataFrame) -> plt.Figure:
     labels = [c.removeprefix("type_").replace("_", " ") for c in counts.index]
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    bars = ax.bar(labels, counts.values, color="#1976d2")
+    bars = ax.bar(range(len(counts)), counts.values, color="#1976d2")
     ax.bar_label(bars, padding=2, fontsize=8)
+    ax.set_xticks(range(len(counts)))
     ax.set_xticklabels(labels, rotation=30, ha="right")
     ax.set_title("Incidents par type de signal")
     ax.set_xlabel("Signal")
+    ax.set_ylabel("Nombre d'incidents")
+    plt.tight_layout()
+    return fig
+
+
+def incident_report_per_machine(df: pd.DataFrame) -> plt.Figure:
+    counts = df.groupby("machine_id").size().sort_values(ascending=False)
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    bars = ax.bar(range(len(counts)), counts.values, color="#7b1fa2")
+    ax.bar_label(bars, padding=2, fontsize=8)
+    ax.set_xticks(range(len(counts)))
+    ax.set_xticklabels(counts.index, rotation=45, ha="right")
+    ax.set_title("Incidents par machine")
+    ax.set_xlabel("Machine")
     ax.set_ylabel("Nombre d'incidents")
     plt.tight_layout()
     return fig
