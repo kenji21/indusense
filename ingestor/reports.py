@@ -6,6 +6,30 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+def incident_report_signal_correlation(df: pd.DataFrame) -> plt.Figure:
+    signal_cols = [c for c in df.columns if c.startswith("type_")]
+    cols = ["severity"] + signal_cols
+    corr = df[cols].corr()
+    labels = ["sévérité"] + [c.removeprefix("type_").replace("_", " ") for c in signal_cols]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(corr.values, cmap="RdYlGn", vmin=-1, vmax=1)
+    fig.colorbar(im, ax=ax, shrink=0.8)
+
+    ax.set_xticks(range(len(labels)))
+    ax.set_yticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
+    ax.set_yticklabels(labels, fontsize=8)
+
+    for i in range(len(labels)):
+        for j in range(len(labels)):
+            ax.text(j, i, f"{corr.values[i, j]:.2f}", ha="center", va="center", fontsize=7)
+
+    ax.set_title("Corrélation entre incidents et signaux")
+    plt.tight_layout()
+    return fig
+
+
 def incident_report_confidence(df: pd.DataFrame) -> plt.Figure:
     buckets = pd.cut(df["confidence_score"], bins=[0, 0.2, 0.6, 1.0],
                      labels=["Faible (0–0.2)", "Moyen (0.2–0.6)", "Élevé (0.6–1.0)"],
