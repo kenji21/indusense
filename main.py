@@ -1,20 +1,30 @@
 import sys
 
-from ingestor import load_incidents, incident_report_per_operator_and_severity
+from ingestor import *
 
 INCIDENTS_PATH = "data/releves_incidents.csv"
 
 COMMANDS = {
-    "report": "Affiche le rapport incidents par opérateur et sévérité",
+    "ingest_incidents": "Charge et résume le fichier incidents (lignes, colonnes, nulls, doublons)",
 }
 
+
+def ingest_incidents():
+    df = load_incidents(INCIDENTS_PATH)
+    print(f"Fichier chargé : {INCIDENTS_PATH}")
+    print(f"  Lignes      : {len(df)}")
+    print(f"  Colonnes    : {len(df.columns)}")
+    print(f"  Doublons    : {df.duplicated().sum()}")
+    print(f"  Valeurs NaN : {df.isnull().sum().sum()}")
+    print(f"\nColonnes : {', '.join(df.columns.tolist())}")
+    incident_report_per_operator_and_severity(df)
+    incident_report_per_shift(df)
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
-    if cmd == "report":
-        df = load_incidents(INCIDENTS_PATH)
-        incident_report_per_operator_and_severity(df)
+    if cmd == "ingest_incidents":
+        ingest_incidents()
     else:
         print("Usage: python main.py <commande>")
         print("\nCommandes disponibles :")
