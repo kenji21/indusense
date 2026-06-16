@@ -6,7 +6,8 @@ Succès si le modèle propose les maintenances en anticipation des pannes
 
 ## Stakeholders 
 
-- Le client : sont but étant de maximiser la production / minimiser les 'coupures' sur les machines
+- Le client / le business : sont but étant de maximiser la production / minimiser les 'coupures' sur les machines
 - L'équipe maintenance (la détection leur évitera des interventions "sous pression")
 - Les opérateurs
-
+- L'IT ou le DSI / RSSI
+- Le volet Juridique
