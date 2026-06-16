@@ -6,6 +6,22 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+def incident_report_confidence(df: pd.DataFrame) -> plt.Figure:
+    buckets = pd.cut(df["confidence_score"], bins=[0, 0.2, 0.6, 1.0],
+                     labels=["Faible (0–0.2)", "Moyen (0.2–0.6)", "Élevé (0.6–1.0)"],
+                     include_lowest=True)
+    counts = buckets.value_counts().reindex(["Faible (0–0.2)", "Moyen (0.2–0.6)", "Élevé (0.6–1.0)"])
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    bars = ax.bar(counts.index, counts.values, color=["#f44336", "#ff9800", "#4caf50"])
+    ax.bar_label(bars, padding=2, fontsize=9)
+    ax.set_title("Distribution de l'indice de confiance des signalements")
+    ax.set_xlabel("Niveau de confiance")
+    ax.set_ylabel("Nombre d'incidents")
+    plt.tight_layout()
+    return fig
+
+
 def incident_report_per_signal(df: pd.DataFrame) -> plt.Figure:
     signal_cols = [c for c in df.columns if c.startswith("type_")]
     counts = df[signal_cols].sum().sort_values(ascending=False)
