@@ -30,7 +30,6 @@ def ingest_incidents():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     figures = {
-        "operator_severity":   incident_report_per_operator_and_severity(df),
         "shift_severity":      incident_report_per_shift(df),
         "day_severity":        incident_report_per_day_and_severity(df),
         "week_severity":       incident_report_per_week_and_severity(df),
@@ -69,7 +68,6 @@ def ingest_incidents():
         "## Graphiques",
     ]
     titles = {
-        "operator_severity":  "Par opérateur et sévérité",
         "shift_severity":     "Par shift et sévérité",
         "day_severity":       "Par jour de la semaine et sévérité",
         "week_severity":      "Par semaine et sévérité",
