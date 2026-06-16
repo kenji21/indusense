@@ -11,3 +11,8 @@ Succès si le modèle propose les maintenances en anticipation des pannes
 - Les opérateurs
 - L'IT ou le DSI / RSSI
 - Le volet Juridique
+
+
+### Setup
+
+Donc : `uv add pandas`

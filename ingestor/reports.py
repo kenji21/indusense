@@ -6,6 +6,22 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+def incident_report_per_signal(df: pd.DataFrame) -> plt.Figure:
+    signal_cols = [c for c in df.columns if c.startswith("type_")]
+    counts = df[signal_cols].sum().sort_values(ascending=False)
+    labels = [c.removeprefix("type_").replace("_", " ") for c in counts.index]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    bars = ax.bar(labels, counts.values, color="#1976d2")
+    ax.bar_label(bars, padding=2, fontsize=8)
+    ax.set_xticklabels(labels, rotation=30, ha="right")
+    ax.set_title("Incidents par type de signal")
+    ax.set_xlabel("Signal")
+    ax.set_ylabel("Nombre d'incidents")
+    plt.tight_layout()
+    return fig
+
+
 def incident_report_per_day_and_severity(df: pd.DataFrame) -> plt.Figure:
     data = df.copy()
     data["date"] = pd.to_datetime(data["date"])
