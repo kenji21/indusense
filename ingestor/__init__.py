@@ -1,4 +1,4 @@
-from .inspector import compute_confidence_score
+from .inspector import compute_confidence_score, extract_report_data
 from .loader import load_incidents
 from .reports import (
     incident_report_confidence,

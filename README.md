@@ -16,3 +16,8 @@ Succès si le modèle propose les maintenances en anticipation des pannes
 ### Setup
 
 Donc : `uv add pandas`
+
+
+### Génération du rapport
+
+Via `uv run python main.py ingest_incidents`
