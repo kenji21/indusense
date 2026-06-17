@@ -82,6 +82,32 @@ def telemetry_report_pressure_per_machine(df: pd.DataFrame) -> plt.Figure:
     return fig
 
 
+def incident_report_type_per_machine(df: pd.DataFrame) -> plt.Figure:
+    type_cols = [c for c in df.columns if c.startswith("type_")]
+    pivot = df.groupby("machine_id")[type_cols].sum()
+    pivot.columns = [c.removeprefix("type_").replace("_", " ") for c in pivot.columns]
+    pivot = pivot.loc[sorted(pivot.index)]
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+    im = ax.imshow(pivot.values, cmap="YlOrRd", aspect="auto")
+    fig.colorbar(im, ax=ax, shrink=0.8, label="Nombre d'incidents")
+
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels(pivot.columns, rotation=35, ha="right", fontsize=9)
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels(pivot.index, fontsize=9)
+
+    for i in range(len(pivot.index)):
+        for j in range(len(pivot.columns)):
+            v = int(pivot.values[i, j])
+            ax.text(j, i, str(v) if v > 0 else "", ha="center", va="center", fontsize=8,
+                    color="black" if pivot.values[i, j] < pivot.values.max() * 0.6 else "white")
+
+    ax.set_title("Répartition des types de panne par machine")
+    plt.tight_layout()
+    return fig
+
+
 def incident_report_signal_correlation(df: pd.DataFrame) -> plt.Figure:
     signal_cols = [c for c in df.columns if c.startswith("type_")]
     cols = ["severity"] + signal_cols

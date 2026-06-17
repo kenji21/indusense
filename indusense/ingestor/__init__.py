@@ -9,6 +9,7 @@ from .reports import (
     telemetry_report_pieces_per_machine,
     telemetry_report_failure_distributions,
     incident_report_confidence,
+    incident_report_type_per_machine,
     incident_report_signal_correlation,
     incident_report_per_day_and_severity,
     incident_report_per_machine,
