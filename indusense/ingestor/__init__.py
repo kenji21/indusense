@@ -6,6 +6,7 @@ from .reports import (
     telemetry_report_temperature_distribution,
     telemetry_report_pressure_per_machine,
     telemetry_report_voltage_per_machine,
+    telemetry_report_rotation_failure_per_machine,
     telemetry_report_pieces_per_machine,
     telemetry_report_failure_distributions,
     incident_report_confidence,

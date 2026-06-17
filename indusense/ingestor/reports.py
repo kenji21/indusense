@@ -6,6 +6,31 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+
+def _split_failure_telemetry(
+    df_tel: pd.DataFrame, df_inc: pd.DataFrame, machine: str, window_hours: int = 1
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    inc_m = df_inc[df_inc["machine_id"] == machine].copy()
+    date_col = next((c for c in df_tel.columns if c in ("date", "timestamp", "recorded_at", "datetime")), None)
+    tel_m = df_tel[df_tel["machine_id"] == machine].copy()
+
+    if date_col is None or inc_m.empty:
+        return tel_m.iloc[0:0], tel_m
+
+    if "time" in inc_m.columns:
+        inc_m["_dt"] = pd.to_datetime(inc_m["date"].astype(str) + " " + inc_m["time"].astype(str))
+    else:
+        inc_m["_dt"] = pd.to_datetime(inc_m["date"])
+
+    tel_m["_dt"] = pd.to_datetime(tel_m[date_col])
+
+    failure_mask = pd.Series(False, index=tel_m.index)
+    delta = pd.Timedelta(hours=window_hours)
+    for t_end in inc_m["_dt"]:
+        failure_mask |= (tel_m["_dt"] >= t_end - delta) & (tel_m["_dt"] <= t_end)
+
+    return tel_m[failure_mask], tel_m[~failure_mask]
+
 def telemetry_report_temperature_per_machine(df: pd.DataFrame) -> plt.Figure:
     machines = sorted(df["machine_id"].unique())
     data = [df[df["machine_id"] == m]["temperature_c"].dropna() for m in machines]
@@ -33,6 +58,37 @@ def telemetry_report_temperature_distribution(df: pd.DataFrame) -> plt.Figure:
     ax.set_ylabel("Densité")
     ax.set_title("Distribution des températures par machine")
     ax.legend(fontsize=7, ncol=4, loc="upper right")
+    plt.tight_layout()
+    return fig
+
+
+def telemetry_report_rotation_failure_per_machine(df_tel: pd.DataFrame, df_inc: pd.DataFrame, machine: str) -> plt.Figure:
+    tel_failure, tel_normal = _split_failure_telemetry(df_tel, df_inc, machine)
+
+    data_failure = tel_failure["rotation_mean_rpm"].dropna()
+    data_normal = tel_normal["rotation_mean_rpm"].dropna()
+
+    bins = np.linspace(
+        min(data_normal.min() if not data_normal.empty else 0,
+            data_failure.min() if not data_failure.empty else 0),
+        max(data_normal.max() if not data_normal.empty else 1,
+            data_failure.max() if not data_failure.empty else 1),
+        25,
+    )
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.hist(data_normal, bins=bins, color="#1e88e5", alpha=0.25, edgecolor="white", label="Hors panne")
+    ax.hist(data_failure, bins=bins, color="#1e88e5", alpha=0.85, edgecolor="white", label="Panne")
+    if not data_normal.empty:
+        ax.axvline(data_normal.mean(), color="gray", linestyle="--", linewidth=1,
+                   label=f"Moy hors panne: {data_normal.mean():.0f}")
+    if not data_failure.empty:
+        ax.axvline(data_failure.mean(), color="black", linestyle="--", linewidth=1,
+                   label=f"Moy panne: {data_failure.mean():.0f}")
+    ax.set_xlabel("Rotation moyenne (RPM)")
+    ax.set_ylabel("Fréquence")
+    ax.set_title(f"{machine} — Distribution rotation (panne vs hors panne)")
+    ax.legend(fontsize=8)
     plt.tight_layout()
     return fig
 
@@ -255,20 +311,7 @@ def incident_report_per_shift(df: pd.DataFrame) -> plt.Figure:
 
 
 def telemetry_report_failure_distributions(df_tel: pd.DataFrame, df_inc: pd.DataFrame, machine: str) -> plt.Figure:
-
-    inc_m1 = df_inc[df_inc["machine_id"] == machine].copy()
-    inc_m1["_date"] = pd.to_datetime(inc_m1["date"]).dt.date
-    failure_dates = set(inc_m1["_date"])
-
-    date_col = next((c for c in df_tel.columns if c in ("date", "timestamp", "recorded_at", "datetime")), None)
-    tel_m1 = df_tel[df_tel["machine_id"] == machine].copy()
-    if date_col and failure_dates:
-        tel_m1["_date"] = pd.to_datetime(tel_m1[date_col]).dt.date
-        tel_failure = tel_m1[tel_m1["_date"].isin(failure_dates)]
-        tel_normal = tel_m1[~tel_m1["_date"].isin(failure_dates)]
-    else:
-        tel_failure = tel_m1
-        tel_normal = tel_m1.iloc[0:0]
+    tel_failure, tel_normal = _split_failure_telemetry(df_tel, df_inc, machine)
 
     metrics = [
         ("temperature_c", "Température (°C)", "#e53935"),
