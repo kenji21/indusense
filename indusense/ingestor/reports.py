@@ -21,6 +21,22 @@ def telemetry_report_temperature_per_machine(df: pd.DataFrame) -> plt.Figure:
     return fig
 
 
+def telemetry_report_temperature_distribution(df: pd.DataFrame) -> plt.Figure:
+    machines = sorted(df["machine_id"].unique())
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    for machine in machines:
+        values = df[df["machine_id"] == machine]["temperature_c"].dropna()
+        ax.hist(values, bins=30, alpha=0.4, label=machine, density=True)
+
+    ax.set_xlabel("Température (°C)")
+    ax.set_ylabel("Densité")
+    ax.set_title("Distribution des températures par machine")
+    ax.legend(fontsize=7, ncol=4, loc="upper right")
+    plt.tight_layout()
+    return fig
+
+
 def telemetry_report_pieces_per_machine(df: pd.DataFrame) -> plt.Figure:
     machines = sorted(df["machine_id"].unique())
     data = [df[df["machine_id"] == m]["pieces_produced"].dropna() for m in machines]
@@ -208,6 +224,58 @@ def incident_report_per_shift(df: pd.DataFrame) -> plt.Figure:
     ax.set_xlabel("Shift")
     ax.set_ylabel("Nombre d'incidents")
     ax.legend(title="Sévérité")
+    plt.tight_layout()
+    return fig
+
+
+def telemetry_report_failure_distributions(df_tel: pd.DataFrame, df_inc: pd.DataFrame, machine: str) -> plt.Figure:
+
+    inc_m1 = df_inc[df_inc["machine_id"] == machine].copy()
+    inc_m1["_date"] = pd.to_datetime(inc_m1["date"]).dt.date
+    failure_dates = set(inc_m1["_date"])
+
+    date_col = next((c for c in df_tel.columns if c in ("date", "timestamp", "recorded_at", "datetime")), None)
+    tel_m1 = df_tel[df_tel["machine_id"] == machine].copy()
+    if date_col and failure_dates:
+        tel_m1["_date"] = pd.to_datetime(tel_m1[date_col]).dt.date
+        tel_failure = tel_m1[tel_m1["_date"].isin(failure_dates)]
+        tel_normal = tel_m1[~tel_m1["_date"].isin(failure_dates)]
+    else:
+        tel_failure = tel_m1
+        tel_normal = tel_m1.iloc[0:0]
+
+    metrics = [
+        ("temperature_c", "Température (°C)", "#e53935"),
+        ("pressure_bar", "Pression (bar)", "#1e88e5"),
+        ("voltage_mean_v", "Tension (V)", "#43a047"),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig.suptitle(f"{machine} — Distribution des capteurs aux moments de panne", fontsize=13)
+
+    for ax, (col, label, color) in zip(axes, metrics):
+        data_normal = tel_normal[col].dropna()
+        data_failure = tel_failure[col].dropna()
+        bins = np.linspace(
+            min(data_normal.min() if not data_normal.empty else 0,
+                data_failure.min() if not data_failure.empty else 0),
+            max(data_normal.max() if not data_normal.empty else 1,
+                data_failure.max() if not data_failure.empty else 1),
+            25,
+        )
+        ax.hist(data_normal, bins=bins, color=color, alpha=0.25, edgecolor="white", label="Hors panne")
+        ax.hist(data_failure, bins=bins, color=color, alpha=0.85, edgecolor="white", label="Panne")
+        if not data_normal.empty:
+            ax.axvline(data_normal.mean(), color="gray", linestyle="--", linewidth=1,
+                       label=f"Moy hors panne: {data_normal.mean():.1f}")
+        if not data_failure.empty:
+            ax.axvline(data_failure.mean(), color="black", linestyle="--", linewidth=1,
+                       label=f"Moy panne: {data_failure.mean():.1f}")
+        ax.set_xlabel(label)
+        ax.set_ylabel("Fréquence")
+        ax.set_title(label)
+        ax.legend(fontsize=8)
+
     plt.tight_layout()
     return fig
 
