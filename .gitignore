@@ -10,3 +10,6 @@ artifacts/
 # Virtual environments
 .venv
 
+# Secrets
+.env
+

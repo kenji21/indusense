@@ -7,18 +7,34 @@ import matplotlib.pyplot as plt
 
 from ingestor import *
 
-INCIDENTS_PATH = "data/releves_incidents.csv"
+INCIDENTS_RAW_PATH      = "data/releves_incidents.csv"
+INCIDENTS_ANON_PATH     = "artifacts/releves_incidents.anonymised.csv"
 
 COMMANDS = {
-    "ingest_incidents": "Charge les incidents, génère et sauvegarde les rapports dans artifacts/",
+    "anonymize":       "Anonymise les opérateurs et écrit artifacts/releves_incidents.anonymised.csv",
+    "ingest_incidents": "Charge les incidents anonymisés, génère les rapports dans artifacts/",
 }
 
 
+def anonymize():
+    df = load_incidents(INCIDENTS_RAW_PATH)
+    df = anonymize_operators(df)
+    out = Path(INCIDENTS_ANON_PATH)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False)
+    print(f"Fichier anonymisé : {out} ({len(df)} lignes)")
+
+
 def ingest_incidents():
-    df = load_incidents(INCIDENTS_PATH)
+    if not Path(INCIDENTS_ANON_PATH).exists():
+        print(f"Fichier anonymisé introuvable : {INCIDENTS_ANON_PATH}")
+        print("Lancez d'abord : python main.py anonymize")
+        sys.exit(1)
+
+    df = load_incidents(INCIDENTS_ANON_PATH)
     df = compute_confidence_score(df)
 
-    print(f"Fichier chargé : {INCIDENTS_PATH}")
+    print(f"Fichier chargé : {INCIDENTS_ANON_PATH}")
     print(f"  Lignes      : {len(df)}")
     print(f"  Colonnes    : {len(df.columns)}")
     print(f"  Doublons    : {df.duplicated().sum()}")
@@ -30,13 +46,13 @@ def ingest_incidents():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     figures = {
-        "shift_severity":      incident_report_per_shift(df),
-        "day_severity":        incident_report_per_day_and_severity(df),
-        "week_severity":       incident_report_per_week_and_severity(df),
-        "signal":              incident_report_per_signal(df),
-        "machine":             incident_report_per_machine(df),
-        "confidence":          incident_report_confidence(df),
-        "signal_correlation":  incident_report_signal_correlation(df),
+        "shift_severity":     incident_report_per_shift(df),
+        "day_severity":       incident_report_per_day_and_severity(df),
+        "week_severity":      incident_report_per_week_and_severity(df),
+        "signal":             incident_report_per_signal(df),
+        "machine":            incident_report_per_machine(df),
+        "confidence":         incident_report_confidence(df),
+        "signal_correlation": incident_report_signal_correlation(df),
     }
 
     for name, fig in figures.items():
@@ -48,7 +64,7 @@ def ingest_incidents():
     data = extract_report_data(df)
     data["meta"] = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "source": INCIDENTS_PATH,
+        "source": INCIDENTS_ANON_PATH,
         "rows": len(df),
         "columns": len(df.columns),
         "duplicates": int(df.duplicated().sum()),
@@ -61,7 +77,7 @@ def ingest_incidents():
         f"# Rapport incidents — {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "",
         "## Résumé",
-        f"- Source : `{INCIDENTS_PATH}`",
+        f"- Source : `{INCIDENTS_ANON_PATH}`",
         f"- Lignes : {len(df)} | Colonnes : {len(df.columns)}",
         f"- Doublons : {int(df.duplicated().sum())} | Valeurs NaN : {int(df.isnull().sum().sum())}",
         "",
@@ -88,7 +104,9 @@ def ingest_incidents():
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
-    if cmd == "ingest_incidents":
+    if cmd == "anonymize":
+        anonymize()
+    elif cmd == "ingest_incidents":
         ingest_incidents()
     else:
         print("Usage: python main.py <commande>")

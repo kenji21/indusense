@@ -1,3 +1,4 @@
+from .anonymizer import anonymize_operators
 from .inspector import compute_confidence_score, extract_report_data
 from .loader import load_incidents
 from .reports import (
