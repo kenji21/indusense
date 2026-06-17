@@ -1,4 +1,6 @@
 from .anonymizer import anonymize_operators
+from .detector import detect_telemetry_anomalies
+from .imputer import list_missing_telemetry, missing_telemetry_incident_correlation
 from .inspector import compute_confidence_score, extract_report_data
 from .loader import load_incidents, load_telemetry
 from .reports import (
