@@ -6,6 +6,66 @@ SEVERITY_COLORS = ["#4caf50", "#ff9800", "#f44336"]
 SEVERITY_LABELS = ["1 - Mineur", "2 - Modéré", "3 - Critique"]
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+def telemetry_report_temperature_per_machine(df: pd.DataFrame) -> plt.Figure:
+    machines = sorted(df["machine_id"].unique())
+    data = [df[df["machine_id"] == m]["temperature_c"].dropna() for m in machines]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.boxplot(data, patch_artist=True)
+    ax.set_xticks(range(1, len(machines) + 1))
+    ax.set_xticklabels(machines, rotation=45, ha="right")
+    ax.set_xlabel("Machine")
+    ax.set_ylabel("Température (°C)")
+    ax.set_title("Répartition de la température par machine")
+    plt.tight_layout()
+    return fig
+
+
+def telemetry_report_pieces_per_machine(df: pd.DataFrame) -> plt.Figure:
+    machines = sorted(df["machine_id"].unique())
+    data = [df[df["machine_id"] == m]["pieces_produced"].dropna() for m in machines]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.boxplot(data, patch_artist=True)
+    ax.set_xticks(range(1, len(machines) + 1))
+    ax.set_xticklabels(machines, rotation=45, ha="right")
+    ax.set_xlabel("Machine")
+    ax.set_ylabel("Pièces produites")
+    ax.set_title("Répartition des pièces produites par machine")
+    plt.tight_layout()
+    return fig
+
+
+def telemetry_report_voltage_per_machine(df: pd.DataFrame) -> plt.Figure:
+    machines = sorted(df["machine_id"].unique())
+    data = [df[df["machine_id"] == m]["voltage_mean_v"].dropna() for m in machines]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.boxplot(data, patch_artist=True)
+    ax.set_xticks(range(1, len(machines) + 1))
+    ax.set_xticklabels(machines, rotation=45, ha="right")
+    ax.set_xlabel("Machine")
+    ax.set_ylabel("Tension moyenne (V)")
+    ax.set_title("Répartition de la tension moyenne par machine")
+    plt.tight_layout()
+    return fig
+
+
+def telemetry_report_pressure_per_machine(df: pd.DataFrame) -> plt.Figure:
+    machines = sorted(df["machine_id"].unique())
+    data = [df[df["machine_id"] == m]["pressure_bar"].dropna() for m in machines]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.boxplot(data, patch_artist=True)
+    ax.set_xticks(range(1, len(machines) + 1))
+    ax.set_xticklabels(machines, rotation=45, ha="right")
+    ax.set_xlabel("Machine")
+    ax.set_ylabel("Pression (bar)")
+    ax.set_title("Répartition de la pression par machine")
+    plt.tight_layout()
+    return fig
+
+
 def incident_report_signal_correlation(df: pd.DataFrame) -> plt.Figure:
     signal_cols = [c for c in df.columns if c.startswith("type_")]
     cols = ["severity"] + signal_cols

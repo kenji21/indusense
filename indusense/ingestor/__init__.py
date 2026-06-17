@@ -1,7 +1,11 @@
 from .anonymizer import anonymize_operators
 from .inspector import compute_confidence_score, extract_report_data
-from .loader import load_incidents
+from .loader import load_incidents, load_telemetry
 from .reports import (
+    telemetry_report_temperature_per_machine,
+    telemetry_report_pressure_per_machine,
+    telemetry_report_voltage_per_machine,
+    telemetry_report_pieces_per_machine,
     incident_report_confidence,
     incident_report_signal_correlation,
     incident_report_per_day_and_severity,
