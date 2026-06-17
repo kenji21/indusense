@@ -5,7 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from ingestor import *
+from indusense.ingestor import *
 
 INCIDENTS_RAW_PATH      = "data/releves_incidents.csv"
 INCIDENTS_ANON_PATH     = "artifacts/releves_incidents.anonymised.csv"

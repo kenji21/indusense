@@ -1,0 +1,33 @@
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Float, Integer, SmallInteger, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from indusense.db.base import Base
+
+
+class Incident(Base):
+    """Relevé d'incident opérateur, issu du CSV anonymisé."""
+
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    machine_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    operator_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    operator_badge: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    severity: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    shift: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Signaux détectés lors de l'incident
+    type_surchauffe: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_baisse_pression: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_vibration: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_bruit_mecanique: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_surconsommation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_blocage_mecanique: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_alarme_capteur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_arret_urgence: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    type_defaut_qualite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
