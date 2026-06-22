@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from sqlalchemy import text
 
 from indusense.ingestor import *
 
@@ -39,7 +40,10 @@ def ingest_incidents():
     df = load_incidents(INCIDENTS_ANON_PATH)
 
     df_db = incidents_to_db_df(df)
-    df_db.to_sql("raw_incidents", con=get_engine(), if_exists="append", index=False)
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE raw_incidents RESTART IDENTITY"))
+    df_db.to_sql("raw_incidents", con=engine, if_exists="append", index=False)
     print(f"{len(df_db)} lignes insérées dans raw_incidents.")
 
     df = compute_confidence_score(df)
@@ -132,7 +136,10 @@ def ingest_telemetry():
     print(f"  Doublons  : {df_db.duplicated().sum()}")
     print(f"  NaN       : {df_db.isnull().sum().sum()} ({df_db.isnull().any(axis=1).sum()} lignes)")
 
-    df_db.to_sql("raw_telemetry", con=get_engine(), if_exists="append", index=False)
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE raw_telemetry RESTART IDENTITY"))
+    df_db.to_sql("raw_telemetry", con=engine, if_exists="append", index=False)
     print(f"\n{len(df_db)} lignes insérées dans raw_telemetry.")
 
 
