@@ -130,7 +130,7 @@ def ingest_telemetry():
     print(f"  Lignes    : {len(df_db)}")
     print(f"  Colonnes  : {', '.join(df_db.columns.tolist())}")
     print(f"  Doublons  : {df_db.duplicated().sum()}")
-    print(f"  NaN       : {df_db.isnull().sum().sum()}")
+    print(f"  NaN       : {df_db.isnull().sum().sum()} ({df_db.isnull().any(axis=1).sum()} lignes)")
 
     df_db.to_sql("raw_telemetry", con=get_engine(), if_exists="append", index=False)
     print(f"\n{len(df_db)} lignes insérées dans raw_telemetry.")
