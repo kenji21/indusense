@@ -15,6 +15,7 @@ COMMANDS = {
     "anonymize":        "Anonymise les opérateurs et écrit artifacts/releves_incidents.anonymised.csv",
     "ingest_incidents": "Charge les incidents anonymisés, génère les rapports dans artifacts/",
     "ingest_telemetry": "Charge data/telemetry.csv et insère les données brutes dans raw_telemetry (PostgreSQL)",
+    "bronze_from_raw":  "Construit les tables bronze depuis raw (rejouable : TRUNCATE + INSERT, dates UTC, FK machine)",
 }
 
 
@@ -110,6 +111,11 @@ def ingest_incidents():
     print(f"\nRapport généré dans : {out_dir}")
 
 
+def bronze_from_raw_cmd():
+    from indusense.bronze import bronze_from_raw
+    bronze_from_raw()
+
+
 def ingest_telemetry():
     if not Path(TELEMETRY_RAW_PATH).exists():
         print(f"Fichier introuvable : {TELEMETRY_RAW_PATH}")
@@ -139,6 +145,8 @@ def main():
         ingest_incidents()
     elif cmd == "ingest_telemetry":
         ingest_telemetry()
+    elif cmd == "bronze_from_raw":
+        bronze_from_raw_cmd()
     else:
         print("Usage: python main.py <commande>")
         print("\nCommandes disponibles :")
