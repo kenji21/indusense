@@ -87,6 +87,15 @@ Deux tables sont définies dans `indusense/db/models/` :
 | `type_arret_urgence`    | Boolean     | Signal : arrêt d'urgence                 |
 | `type_defaut_qualite`   | Boolean     | Signal : défaut qualité                  |
 
+### Charger les données initiales
+
+```bash
+set -o allexport && source pgdocker/.env && set +o allexport
+docker exec -i pgdocker-db-1 \
+  psql -U "${DB_USER:-dbuser}" -d "${DB_NAME:-db}" \
+  < data/machine.sql
+```
+
 ### Migrations (Alembic)
 
 Générer et appliquer la première migration :
