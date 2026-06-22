@@ -12,6 +12,7 @@ class Telemetry(Base):
     __tablename__ = "raw_telemetry"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     machine_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)

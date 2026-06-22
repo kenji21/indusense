@@ -12,6 +12,7 @@ class BronzeIncident(Base):
     __tablename__ = "bronze_incidents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     machine_id: Mapped[str] = mapped_column(
         String(16), ForeignKey("bronze_machine.machine_code"), nullable=False, index=True
     )

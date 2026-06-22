@@ -13,6 +13,7 @@ class BronzeMaintenance(Base):
     __tablename__ = "bronze_maintenance"
 
     maintenance_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     machine_code: Mapped[str] = mapped_column(
         String(16), ForeignKey("bronze_machine.machine_code"), nullable=False, index=True
     )

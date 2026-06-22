@@ -7,6 +7,12 @@ from indusense.db.models.bronze_machine import BronzeMachine
 from indusense.db.models.bronze_maintenance import BronzeMaintenance
 from indusense.db.models.bronze_telemetry import BronzeTelemetry
 from indusense.db.session import get_engine
+from indusense.pipeline import (
+    ensure_pipeline_runs_table,
+    finalize_run,
+    get_pipeline_tag,
+    resolve_run,
+)
 
 
 def _warn_invalid(df_bad: "pd.DataFrame", table: str, key_col: str) -> None:
@@ -18,6 +24,18 @@ def _warn_invalid(df_bad: "pd.DataFrame", table: str, key_col: str) -> None:
 
 def bronze_from_raw() -> None:
     engine = get_engine()
+    ensure_pipeline_runs_table(engine)
+
+    tag = get_pipeline_tag()
+    run_id = resolve_run(
+        engine,
+        layer="bronze",
+        tag=tag,
+        params={
+            "source_telemetry": "data/telemetry.csv",
+            "source_incidents": "artifacts/releves_incidents.anonymised.csv",
+        },
+    )
 
     # DROP + CREATE garantit que le schéma en base est toujours en phase avec les modèles
     with engine.begin() as conn:
@@ -36,27 +54,31 @@ def bronze_from_raw() -> None:
         ],
     )
 
-    n_mach = _transform_machine(engine)
+    n_mach = _transform_machine(engine, run_id)
     valid_machines = set(
         pd.read_sql("SELECT machine_code FROM bronze_machine", con=engine)["machine_code"]
     )
-    n_maint = _transform_maintenance(engine, valid_machines)
-    n_tel, n_tel_invalid = _transform_telemetry(engine, valid_machines)
-    n_inc, n_inc_invalid = _transform_incidents(engine, valid_machines)
+    n_maint = _transform_maintenance(engine, valid_machines, run_id)
+    n_tel, n_tel_invalid = _transform_telemetry(engine, valid_machines, run_id)
+    n_inc, n_inc_invalid = _transform_incidents(engine, valid_machines, run_id)
+
+    finalize_run(engine, run_id, row_count=n_mach + n_maint + n_tel + n_inc)
 
     print(f"bronze_machine      : {n_mach} lignes")
     print(f"bronze_maintenance  : {n_maint} lignes")
     print(f"bronze_telemetry    : {n_tel} lignes  ({n_tel_invalid} invalides)")
     print(f"bronze_incidents    : {n_inc} lignes  ({n_inc_invalid} invalides)")
+    print(f"[pipeline_runs]     : layer=bronze  tag={tag}  run_id={run_id}")
 
 
-def _transform_machine(engine) -> int:
+def _transform_machine(engine, run_id: int) -> int:
     df = pd.read_sql("SELECT * FROM machine ORDER BY machine_code", con=engine)
+    df["run_id"] = run_id
     df.to_sql("bronze_machine", con=engine, if_exists="append", index=False)
     return len(df)
 
 
-def _transform_maintenance(engine, valid_machines: set) -> int:
+def _transform_maintenance(engine, valid_machines: set, run_id: int) -> int:
     df = pd.read_sql("SELECT * FROM maintenance ORDER BY maintenance_at", con=engine)
 
     # Dates → UTC ISO 8601 (déjà TIMESTAMPTZ dans la source, on normalise quand même)
@@ -69,11 +91,12 @@ def _transform_maintenance(engine, valid_machines: set) -> int:
         _warn_invalid(df[mask_invalid], "maintenance", "machine_code")
     df = df[~mask_invalid]
 
+    df["run_id"] = run_id
     df.to_sql("bronze_maintenance", con=engine, if_exists="append", index=False)
     return len(df)
 
 
-def _transform_telemetry(engine, valid_machines: set) -> tuple[int, int]:
+def _transform_telemetry(engine, valid_machines: set, run_id: int) -> tuple[int, int]:
     df = pd.read_sql("SELECT * FROM raw_telemetry ORDER BY recorded_at", con=engine)
     df = df.drop(columns=["id"], errors="ignore")
 
@@ -90,11 +113,12 @@ def _transform_telemetry(engine, valid_machines: set) -> tuple[int, int]:
         df.groupby(["machine_id", "recorded_at"])["machine_id"].transform("size") == 1
     )
 
+    df["run_id"] = run_id
     df.to_sql("bronze_telemetry", con=engine, if_exists="append", index=False)
     return len(df), int((~df["bronze_data_valid"]).sum())
 
 
-def _transform_incidents(engine, valid_machines: set) -> tuple[int, int]:
+def _transform_incidents(engine, valid_machines: set, run_id: int) -> tuple[int, int]:
     df = pd.read_sql("SELECT * FROM raw_incidents ORDER BY occurred_at", con=engine)
     df = df.drop(columns=["id"], errors="ignore")
 
@@ -109,5 +133,6 @@ def _transform_incidents(engine, valid_machines: set) -> tuple[int, int]:
     # Règle : severity doit être entre 1 et 5 inclus
     df["bronze_data_valid"] = df["severity"].between(1, 5)
 
+    df["run_id"] = run_id
     df.to_sql("bronze_incidents", con=engine, if_exists="append", index=False)
     return len(df), int((~df["bronze_data_valid"]).sum())

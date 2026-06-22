@@ -12,6 +12,7 @@ class Incident(Base):
     __tablename__ = "raw_incidents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     machine_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     occurred_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     operator_name: Mapped[str | None] = mapped_column(String(100), nullable=True)

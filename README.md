@@ -32,10 +32,11 @@ cp .env.example .env
 
 Fichier `.env` à créer depuis `.env.example` :
 
-| Variable       | Description                                  | Exemple                                          |
-|----------------|----------------------------------------------|--------------------------------------------------|
-| `ANON_SALT`    | Sel de hachage pour l'anonymisation          | `une_valeur_secrete`                             |
-| `DATABASE_URL` | URL de connexion SQLAlchemy à PostgreSQL     | `postgresql://dbuser:dbpassword@localhost:5432/db` |
+| Variable                | Description                                       | Exemple                                            |
+|-------------------------|---------------------------------------------------|----------------------------------------------------|
+| `ANON_SALT`             | Sel de hachage pour l'anonymisation               | `une_valeur_secrete`                               |
+| `DATABASE_URL`          | URL de connexion SQLAlchemy à PostgreSQL          | `postgresql://dbuser:dbpassword@localhost:5432/db` |
+| `DATA_PIPELINE_VERSION` | Tag de versioning du run courant (obligatoire)    | `v1`                                               |
 
 ---
 
@@ -49,101 +50,96 @@ cp .env.sample .env   # puis éditer si besoin
 docker compose up -d
 ```
 
-### Modèles SQLAlchemy
+---
 
-Deux tables sont définies dans `indusense/db/models/` :
+## Pipeline de données et traçabilité
 
-**`telemetry`** — relevés de capteurs (température, pression, vibration) par machine et horodatage.
+### Architecture Bronze / Silver / Gold
 
-| Colonne       | Type      | Description                    |
-|---------------|-----------|--------------------------------|
-| `id`          | Integer   | Clé primaire                   |
-| `machine_id`  | String    | Identifiant de la machine      |
-| `recorded_at` | DateTime  | Horodatage du relevé           |
-| `temperature` | Float     | Température (°C), nullable     |
-| `pressure`    | Float     | Pression hydraulique, nullable |
-| `vibration`   | Float     | Niveau de vibration, nullable  |
+```
+data/telemetry.csv        data/releves_incidents.csv      data/machine.sql
+        │                           │                            │
+        ▼                           ▼                            ▼
+ ingest_telemetry           ingest_incidents             (chargement SQL)
+  → raw_telemetry             → raw_incidents          → machine + maintenance
+        │                           │                            │
+        └───────────────────────────┴────────────────────────────┘
+                                    │
+                              bronze_from_raw
+                       → bronze_telemetry / bronze_incidents
+                         bronze_machine / bronze_maintenance
+                                    │
+                          (silver — à venir)
+                                    │
+                           (gold — à venir)
+```
 
-**`incidents`** — relevés d'incidents opérateurs (issus du CSV anonymisé).
+Chaque table de données porte un `run_id` → `pipeline_runs.id`. La traçabilité d'une ligne gold vers les données raw se fait via `tag` + `machine_id` + fenêtre temporelle.
 
-| Colonne                 | Type        | Description                              |
-|-------------------------|-------------|------------------------------------------|
-| `id`                    | Integer     | Clé primaire                             |
-| `machine_id`            | String      | Identifiant de la machine                |
-| `occurred_at`           | DateTime    | Date/heure de l'incident, nullable       |
-| `operator_name`         | String      | Opérateur (anonymisé `OP-<hash>`)        |
-| `operator_badge`        | String      | Badge (anonymisé `BADGE-<hash>`)         |
-| `severity`              | SmallInteger| Sévérité 1 / 2 / 3                      |
-| `shift`                 | String      | Poste (matin / après-midi / nuit)        |
-| `comment`               | Text        | Commentaire libre, nullable              |
-| `confidence_score`      | Float       | Score de confiance calculé (0–1)         |
-| `type_surchauffe`       | Boolean     | Signal : surchauffe                      |
-| `type_baisse_pression`  | Boolean     | Signal : baisse de pression              |
-| `type_vibration`        | Boolean     | Signal : vibration anormale              |
-| `type_bruit_mecanique`  | Boolean     | Signal : bruit mécanique                 |
-| `type_surconsommation`  | Boolean     | Signal : surconsommation                 |
-| `type_blocage_mecanique`| Boolean     | Signal : blocage mécanique               |
-| `type_alarme_capteur`   | Boolean     | Signal : alarme capteur                  |
-| `type_arret_urgence`    | Boolean     | Signal : arrêt d'urgence                 |
-| `type_defaut_qualite`   | Boolean     | Signal : défaut qualité                  |
+### Versioning des runs (`pipeline_runs`)
 
-### Charger les données initiales
+**Un `pipeline_run` = une étape du pipeline pour un tag.** Le tag est la valeur de `DATA_PIPELINE_VERSION`. La clé naturelle est `(tag, layer)`, enforced par une contrainte UNIQUE.
+
+```
+pipeline_runs
+  id         — identifiant
+  tag        — DATA_PIPELINE_VERSION (ex: 'v1')       ┐ UNIQUE
+  layer      — 'raw_telemetry' | 'raw_incidents'       │
+               'bronze' | 'silver' | 'gold'            ┘
+  created_at — première exécution du run
+  updated_at — mise à jour à chaque rejeu du même tag
+  git_sha    — commit Git associé
+  row_count  — nombre de lignes produites
+  params     — paramètres de l'étape (sources CSV, seuils…)
+  csv_path   — chemin du CSV exporté (gold uniquement)
+```
+
+**Comportement upsert :** rejouer une commande avec le même tag met à jour la ligne existante. Changer `DATA_PIPELINE_VERSION` ouvre un nouveau slot de comparaison.
 
 ```bash
-set -o allexport && source pgdocker/.env && set +o allexport
-docker exec -i pgdocker-db-1 \
-  psql -U "${DB_USER:-dbuser}" -d "${DB_NAME:-db}" \
-  < data/machine.sql
-```
-
-Création de raw_telemetry et raw_incidents dans la base
-```
+# Pipeline complet en v1
 uv run python main.py ingest_telemetry
 uv run python main.py ingest_incidents
+uv run python main.py bronze_from_raw
+
+# Ouvrir v2 (ex : après modification d'un paramètre)
+# → changer DATA_PIPELINE_VERSION=v2 dans .env puis relancer
+
+# Inspecter tous les runs
+uv run python -c "
+import pandas as pd
+from indusense.db.session import get_engine
+print(pd.read_sql('SELECT id, tag, layer, row_count, updated_at FROM pipeline_runs ORDER BY id', get_engine()).to_string())
+"
 ```
 
-### Migrations (Alembic)
-
-Générer et appliquer la première migration :
+### Initialisation complète depuis zéro
 
 ```bash
-alembic revision --autogenerate -m "init telemetry incidents"
-alembic upgrade head
-```
+# 1. Charger le référentiel machines (SQL seed)
+docker exec -i pgdocker-db-1 psql -U dbuser -d db < data/machine.sql
 
-Rollback d'une version :
+# 2. Anonymiser les opérateurs
+uv run python main.py anonymize
 
-```bash
-alembic downgrade -1
+# 3. Ingestion raw
+uv run python main.py ingest_telemetry
+uv run python main.py ingest_incidents
+
+# 4. Fabrication Bronze
+uv run python main.py bronze_from_raw
 ```
 
 ---
 
 ## Commandes principales
 
-### Anonymiser les données brutes
-
-```bash
-uv run python main.py anonymize
-```
-
-Lit `data/releves_incidents.csv`, applique le hachage des opérateurs, écrit `artifacts/releves_incidents.anonymised.csv`.
-
-### Injecter la télémétrie brute
-
-```bash
-uv run python main.py ingest_telemetry
-```
-
-Charge `data/telemetry.csv` et insère les lignes brutes dans la table `raw_telemetry` (PostgreSQL).
-
-### Générer le rapport d'analyse
-
-```bash
-uv run python main.py ingest_incidents
-```
-
-Charge le CSV anonymisé, calcule les scores de confiance, génère graphiques et rapport Markdown dans `artifacts/ingestions/incidents/<horodatage>/`.
+| Commande           | Description                                                                 |
+|--------------------|-----------------------------------------------------------------------------|
+| `anonymize`        | Anonymise les opérateurs → `artifacts/releves_incidents.anonymised.csv`     |
+| `ingest_telemetry` | Charge `data/telemetry.csv` → table `raw_telemetry`                         |
+| `ingest_incidents` | Charge le CSV anonymisé → table `raw_incidents` + rapports dans `artifacts/`|
+| `bronze_from_raw`  | Construit les tables `bronze_*` : normalisation UTC, FK, `bronze_data_valid` |
 
 ---
 
@@ -151,20 +147,32 @@ Charge le CSV anonymisé, calcule les scores de confiance, génère graphiques e
 
 ```
 indusense/
+  pipeline.py          — versioning : get_pipeline_tag, resolve_run, finalize_run
+  bronze.py            — transformations Bronze (raw → bronze_*)
   db/
     base.py            — DeclarativeBase SQLAlchemy
-    session.py         — get_engine() / get_session() (lazy, lit DATABASE_URL)
+    session.py         — get_engine() (lazy, lit DATABASE_URL)
     models/
-      telemetry.py     — modèle Telemetry
-      incident.py      — modèle Incident
+      machine.py             — table machine (référentiel, chargé via SQL)
+      telemetry.py           — table raw_telemetry (+ run_id)
+      incident.py            — table raw_incidents (+ run_id)
+      bronze_machine.py      — table bronze_machine (+ run_id)
+      bronze_telemetry.py    — table bronze_telemetry (+ run_id, bronze_data_valid)
+      bronze_incident.py     — table bronze_incidents (+ run_id, bronze_data_valid)
+      bronze_maintenance.py  — table bronze_maintenance (+ run_id)
+      pipeline_run.py        — table pipeline_runs (clé unique tag+layer)
   alembic/             — migrations Alembic
   ingestor/
     loader.py          — chargement CSV
     anonymizer.py      — anonymisation opérateurs
-    inspector.py       — extraction métriques et graphiques
+    inspector.py       — extraction métriques et scores de confiance
+    detector.py        — détection d'anomalies (z-score)
+    imputer.py         — analyse des valeurs manquantes
     reports.py         — génération figures matplotlib
-alembic.ini            — configuration Alembic (pointe sur indusense/alembic/)
+alembic.ini            — configuration Alembic
 pgdocker/              — Docker Compose PostgreSQL + PgAdmin
 artifacts/             — sorties générées (CSV anonymisé, rapports, graphiques)
+doc/
+  gold_roadmap.md      — spécification complète du Gold dataset
 main.py                — point d'entrée CLI
 ```

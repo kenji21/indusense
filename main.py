@@ -36,15 +36,28 @@ def ingest_incidents():
         sys.exit(1)
 
     from indusense.db.session import get_engine
+    from indusense.pipeline import ensure_pipeline_runs_table, finalize_run, get_pipeline_tag, resolve_run
 
     df = load_incidents(INCIDENTS_ANON_PATH)
 
     df_db = incidents_to_db_df(df)
     engine = get_engine()
+    ensure_pipeline_runs_table(engine)
+
+    from indusense.db.base import Base
+    from indusense.db.models.incident import Incident
+    Base.metadata.create_all(engine, tables=[Incident.__table__], checkfirst=True)
+
+    tag = get_pipeline_tag()
+    run_id = resolve_run(engine, layer="raw_incidents", tag=tag, params={"source": INCIDENTS_ANON_PATH})
+
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE raw_incidents RESTART IDENTITY"))
+    df_db["run_id"] = run_id
     df_db.to_sql("raw_incidents", con=engine, if_exists="append", index=False)
+    finalize_run(engine, run_id, row_count=len(df_db))
     print(f"{len(df_db)} lignes insérées dans raw_incidents.")
+    print(f"[pipeline_runs]     : layer=raw_incidents  tag={tag}  run_id={run_id}")
 
     df = compute_confidence_score(df)
 
@@ -126,6 +139,7 @@ def ingest_telemetry():
         sys.exit(1)
 
     from indusense.db.session import get_engine
+    from indusense.pipeline import ensure_pipeline_runs_table, finalize_run, get_pipeline_tag, resolve_run
 
     df = load_telemetry(TELEMETRY_RAW_PATH)
     df_db = telemetry_to_db_df(df)
@@ -137,10 +151,22 @@ def ingest_telemetry():
     print(f"  NaN       : {df_db.isnull().sum().sum()} ({df_db.isnull().any(axis=1).sum()} lignes)")
 
     engine = get_engine()
+    ensure_pipeline_runs_table(engine)
+
+    from indusense.db.base import Base
+    from indusense.db.models.telemetry import Telemetry
+    Base.metadata.create_all(engine, tables=[Telemetry.__table__], checkfirst=True)
+
+    tag = get_pipeline_tag()
+    run_id = resolve_run(engine, layer="raw_telemetry", tag=tag, params={"source": TELEMETRY_RAW_PATH})
+
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE raw_telemetry RESTART IDENTITY"))
+    df_db["run_id"] = run_id
     df_db.to_sql("raw_telemetry", con=engine, if_exists="append", index=False)
+    finalize_run(engine, run_id, row_count=len(df_db))
     print(f"\n{len(df_db)} lignes insérées dans raw_telemetry.")
+    print(f"[pipeline_runs]     : layer=raw_telemetry  tag={tag}  run_id={run_id}")
 
 
 def main():
