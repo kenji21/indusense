@@ -96,6 +96,12 @@ docker exec -i pgdocker-db-1 \
   < data/machine.sql
 ```
 
+Création de raw_telemetry et raw_incidents dans la base
+```
+uv run python main.py ingest_telemetry
+uv run python main.py ingest_incidents
+```
+
 ### Migrations (Alembic)
 
 Générer et appliquer la première migration :
@@ -122,6 +128,14 @@ uv run python main.py anonymize
 ```
 
 Lit `data/releves_incidents.csv`, applique le hachage des opérateurs, écrit `artifacts/releves_incidents.anonymised.csv`.
+
+### Injecter la télémétrie brute
+
+```bash
+uv run python main.py ingest_telemetry
+```
+
+Charge `data/telemetry.csv` et insère les lignes brutes dans la table `raw_telemetry` (PostgreSQL).
 
 ### Générer le rapport d'analyse
 

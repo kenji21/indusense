@@ -2,7 +2,7 @@ from .anonymizer import anonymize_operators
 from .detector import detect_telemetry_anomalies
 from .imputer import list_missing_telemetry, missing_telemetry_incident_correlation
 from .inspector import compute_confidence_score, extract_report_data
-from .loader import load_incidents, load_telemetry
+from .loader import load_incidents, load_telemetry, telemetry_to_db_df, incidents_to_db_df
 from .reports import (
     telemetry_report_temperature_per_machine,
     telemetry_report_temperature_distribution,

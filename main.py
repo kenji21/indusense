@@ -9,10 +9,12 @@ from indusense.ingestor import *
 
 INCIDENTS_RAW_PATH      = "data/releves_incidents.csv"
 INCIDENTS_ANON_PATH     = "artifacts/releves_incidents.anonymised.csv"
+TELEMETRY_RAW_PATH      = "data/telemetry.csv"
 
 COMMANDS = {
-    "anonymize":       "Anonymise les opérateurs et écrit artifacts/releves_incidents.anonymised.csv",
+    "anonymize":        "Anonymise les opérateurs et écrit artifacts/releves_incidents.anonymised.csv",
     "ingest_incidents": "Charge les incidents anonymisés, génère les rapports dans artifacts/",
+    "ingest_telemetry": "Charge data/telemetry.csv et insère les données brutes dans raw_telemetry (PostgreSQL)",
 }
 
 
@@ -31,7 +33,14 @@ def ingest_incidents():
         print("Lancez d'abord : python main.py anonymize")
         sys.exit(1)
 
+    from indusense.db.session import get_engine
+
     df = load_incidents(INCIDENTS_ANON_PATH)
+
+    df_db = incidents_to_db_df(df)
+    df_db.to_sql("raw_incidents", con=get_engine(), if_exists="append", index=False)
+    print(f"{len(df_db)} lignes insérées dans raw_incidents.")
+
     df = compute_confidence_score(df)
 
     print(f"Fichier chargé : {INCIDENTS_ANON_PATH}")
@@ -101,6 +110,26 @@ def ingest_incidents():
     print(f"\nRapport généré dans : {out_dir}")
 
 
+def ingest_telemetry():
+    if not Path(TELEMETRY_RAW_PATH).exists():
+        print(f"Fichier introuvable : {TELEMETRY_RAW_PATH}")
+        sys.exit(1)
+
+    from indusense.db.session import get_engine
+
+    df = load_telemetry(TELEMETRY_RAW_PATH)
+    df_db = telemetry_to_db_df(df)
+
+    print(f"Fichier chargé : {TELEMETRY_RAW_PATH}")
+    print(f"  Lignes    : {len(df_db)}")
+    print(f"  Colonnes  : {', '.join(df_db.columns.tolist())}")
+    print(f"  Doublons  : {df_db.duplicated().sum()}")
+    print(f"  NaN       : {df_db.isnull().sum().sum()}")
+
+    df_db.to_sql("raw_telemetry", con=get_engine(), if_exists="append", index=False)
+    print(f"\n{len(df_db)} lignes insérées dans raw_telemetry.")
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
 
@@ -108,6 +137,8 @@ def main():
         anonymize()
     elif cmd == "ingest_incidents":
         ingest_incidents()
+    elif cmd == "ingest_telemetry":
+        ingest_telemetry()
     else:
         print("Usage: python main.py <commande>")
         print("\nCommandes disponibles :")

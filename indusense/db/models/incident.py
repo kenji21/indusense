@@ -9,7 +9,7 @@ from indusense.db.base import Base
 class Incident(Base):
     """Relevé d'incident opérateur, issu du CSV anonymisé."""
 
-    __tablename__ = "incidents"
+    __tablename__ = "raw_incidents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     machine_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
