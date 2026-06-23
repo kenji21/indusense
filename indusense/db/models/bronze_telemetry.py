@@ -1,9 +1,19 @@
+import enum
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from indusense.db.base import Base
+
+
+class BronzeInvalidReason(str, enum.Enum):
+    duplicate = "duplicate"
+    missing_temperature = "missing_temperature"
+    missing_pressure = "missing_pressure"
+    missing_rotation_mean_rpm = "missing_rotation_mean_rpm"
+    missing_voltage_mean_v = "missing_voltage_mean_v"
+    missing_pieces_produced = "missing_pieces_produced"
 
 
 class BronzeTelemetry(Base):
@@ -24,3 +34,4 @@ class BronzeTelemetry(Base):
     pieces_produced: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     bronze_data_valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    bronze_data_comment: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -5,7 +5,7 @@ from indusense.db.base import Base
 from indusense.db.models.bronze_incident import BronzeIncident
 from indusense.db.models.bronze_machine import BronzeMachine
 from indusense.db.models.bronze_maintenance import BronzeMaintenance
-from indusense.db.models.bronze_telemetry import BronzeTelemetry
+from indusense.db.models.bronze_telemetry import BronzeInvalidReason, BronzeTelemetry
 from indusense.db.session import get_engine
 from indusense.pipeline import (
     ensure_pipeline_runs_table,
@@ -62,10 +62,12 @@ def bronze_from_raw() -> None:
         pd.read_sql("SELECT machine_code FROM bronze_machine", con=engine)["machine_code"]
     )
     n_maint = _transform_maintenance(engine, valid_machines, run_id, warnings)
-    n_tel, n_tel_invalid = _transform_telemetry(engine, valid_machines, run_id, warnings)
+    n_tel, n_tel_invalid, tel_summary = _transform_telemetry(engine, valid_machines, run_id, warnings)
     n_inc, n_inc_invalid = _transform_incidents(engine, valid_machines, run_id, warnings)
 
-    comment = "\n".join(warnings) if warnings else None
+    parts = [tel_summary] if tel_summary else []
+    parts += warnings
+    comment = "\n".join(parts) if parts else None
     finalize_run(engine, run_id, row_count=n_mach + n_maint + n_tel + n_inc, comment=comment)
 
     print(f"bronze_machine      : {n_mach} lignes")
@@ -112,14 +114,38 @@ def _transform_telemetry(engine, valid_machines: set, run_id: int, warnings: lis
         _warn_invalid(warnings, df[mask_invalid], "telemetry", "machine_id")
     df = df[~mask_invalid]
 
-    # Règle : une seule télémétrie par (machine_id, recorded_at)
-    df["bronze_data_valid"] = (
-        df.groupby(["machine_id", "recorded_at"])["machine_id"].transform("size") == 1
+    # Détection des invalides
+    mask_duplicate = df.groupby(["machine_id", "recorded_at"])["machine_id"].transform("size") > 1
+    mask_missing_temp = df["temperature_c"].isna()
+    mask_missing_pres = df["pressure_bar"].isna()
+    mask_missing_rpm = df["rotation_mean_rpm"].isna()
+    mask_missing_voltage = df["voltage_mean_v"].isna()
+    mask_missing_pieces = df["pieces_produced"].isna()
+
+    df["bronze_data_valid"] = ~(
+        mask_duplicate
+        | mask_missing_temp
+        | mask_missing_pres
+        | mask_missing_rpm
+        | mask_missing_voltage
+        | mask_missing_pieces
     )
+
+    # Priorité : duplicate > missing_temperature > missing_pressure > missing_rotation_mean_rpm > missing_voltage_mean_v > missing_pieces_produced
+    df["bronze_data_comment"] = None
+    df.loc[mask_missing_pieces, "bronze_data_comment"] = BronzeInvalidReason.missing_pieces_produced.value
+    df.loc[mask_missing_voltage, "bronze_data_comment"] = BronzeInvalidReason.missing_voltage_mean_v.value
+    df.loc[mask_missing_rpm, "bronze_data_comment"] = BronzeInvalidReason.missing_rotation_mean_rpm.value
+    df.loc[mask_missing_pres, "bronze_data_comment"] = BronzeInvalidReason.missing_pressure.value
+    df.loc[mask_missing_temp, "bronze_data_comment"] = BronzeInvalidReason.missing_temperature.value
+    df.loc[mask_duplicate, "bronze_data_comment"] = BronzeInvalidReason.duplicate.value
 
     df["run_id"] = run_id
     df.to_sql("bronze_telemetry", con=engine, if_exists="append", index=False)
-    return len(df), int((~df["bronze_data_valid"]).sum())
+
+    counts = df["bronze_data_comment"].value_counts()
+    summary = " ; ".join(f"{v} {k}" for k, v in counts.items()) if not counts.empty else None
+    return len(df), int((~df["bronze_data_valid"]).sum()), summary
 
 
 def _transform_incidents(engine, valid_machines: set, run_id: int, warnings: list) -> tuple[int, int]:

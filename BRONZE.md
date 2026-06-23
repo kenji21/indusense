@@ -41,16 +41,35 @@ La colonne `machine_id` (valeurs : `MACH-01` … `MACH-15`) référence désorma
 - La couche bronze est **auto-contenue** : `bronze_telemetry`, `bronze_incidents` et
   `bronze_maintenance` se joignent directement à `bronze_machine` sans passer par les tables raw.
 
-## Règles métier (`bronze_data_valid`)
+## Règles métier (`bronze_data_valid` / `bronze_data_comment`)
 
 La colonne `bronze_data_valid` (BOOLEAN NOT NULL) est calculée à l'ingestion. Elle ne filtre
 aucune ligne — toutes les lignes raw sont conservées — mais marque celles qui violent une règle
 métier afin que les couches aval puissent les ignorer ou les traiter séparément.
 
-| Table               | Règle                                                         |
-|---------------------|---------------------------------------------------------------|
-| `bronze_telemetry`  | `true` si le couple `(machine_id, recorded_at)` est unique dans la table |
-| `bronze_incidents`  | `true` si `severity` est compris entre 1 et 5 inclus         |
+Quand `bronze_data_valid = false`, la colonne `bronze_data_comment` (VARCHAR 64, nullable)
+précise la première raison détectée selon l'ordre de priorité ci-dessous.
+
+### `bronze_telemetry`
+
+| Priorité | Valeur `bronze_data_comment`  | Condition                                              |
+|----------|-------------------------------|--------------------------------------------------------|
+| 1        | `duplicate`                   | Le couple `(machine_id, recorded_at)` apparaît plus d'une fois |
+| 2        | `missing_temperature`         | `temperature_c` est NULL                              |
+| 3        | `missing_pressure`            | `pressure_bar` est NULL                               |
+| 4        | `missing_rotation_mean_rpm`   | `rotation_mean_rpm` est NULL                          |
+| 5        | `missing_voltage_mean_v`      | `voltage_mean_v` est NULL                             |
+| 6        | `missing_pieces_produced`     | `pieces_produced` est NULL                            |
+
+`bronze_data_valid = false` dès qu'au moins une condition est vérifiée. Si plusieurs conditions
+s'appliquent à la même ligne, seule la raison de plus haute priorité est conservée dans
+`bronze_data_comment`.
+
+### `bronze_incidents`
+
+| Règle                                                   |
+|---------------------------------------------------------|
+| `bronze_data_valid = true` si `severity` ∈ [1, 5]      |
 
 ## Schéma des tables bronze
 
@@ -94,6 +113,7 @@ erDiagram
         FLOAT voltage_mean_v
         FLOAT pieces_produced
         BOOLEAN bronze_data_valid
+        VARCHAR64 bronze_data_comment
     }
 
     bronze_incidents {
@@ -167,7 +187,8 @@ erDiagram
 | `rotation_mean_rpm` | FLOAT           |                                     |
 | `voltage_mean_v`    | FLOAT           |                                     |
 | `pieces_produced`   | FLOAT           |                                     |
-| `bronze_data_valid` | BOOLEAN         | NOT NULL — `false` si doublon sur `(machine_id, recorded_at)` |
+| `bronze_data_valid`   | BOOLEAN         | NOT NULL — `false` si au moins une règle métier est violée    |
+| `bronze_data_comment` | VARCHAR(64)     | nullable — raison de priorité la plus haute (`duplicate`, `missing_*`) |
 
 ### `bronze_incidents`
 
