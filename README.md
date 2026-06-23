@@ -116,17 +116,15 @@ print(pd.read_sql('SELECT id, tag, layer, row_count, updated_at FROM pipeline_ru
 ### Initialisation complète depuis zéro
 
 ```bash
-# 1. Charger le référentiel machines (SQL seed)
-docker exec -i pgdocker-db-1 psql -U dbuser -d db < data/machine.sql
-
-# 2. Anonymiser les opérateurs
+# 1. Anonymiser les opérateurs
 uv run python main.py anonymize
 
-# 3. Ingestion raw
-uv run python main.py ingest_telemetry
-uv run python main.py ingest_incidents
+# 2. Ingestion raw (toutes les sources sont attachées à un pipeline_run)
+uv run python main.py ingest_machine    # machine + maintenance depuis data/machine.sql
+uv run python main.py ingest_telemetry  # raw_telemetry depuis data/telemetry.csv
+uv run python main.py ingest_incidents  # raw_incidents depuis le CSV anonymisé
 
-# 4. Fabrication Bronze
+# 3. Fabrication Bronze
 uv run python main.py bronze_from_raw
 ```
 
@@ -134,12 +132,13 @@ uv run python main.py bronze_from_raw
 
 ## Commandes principales
 
-| Commande           | Description                                                                 |
-|--------------------|-----------------------------------------------------------------------------|
-| `anonymize`        | Anonymise les opérateurs → `artifacts/releves_incidents.anonymised.csv`     |
-| `ingest_telemetry` | Charge `data/telemetry.csv` → table `raw_telemetry`                         |
-| `ingest_incidents` | Charge le CSV anonymisé → table `raw_incidents` + rapports dans `artifacts/`|
-| `bronze_from_raw`  | Construit les tables `bronze_*` : normalisation UTC, FK, `bronze_data_valid` |
+| Commande           | Description                                                                      |
+|--------------------|----------------------------------------------------------------------------------|
+| `anonymize`        | Anonymise les opérateurs → `artifacts/releves_incidents.anonymised.csv`          |
+| `ingest_machine`   | Charge `data/machine.sql` → tables `machine` + `maintenance` (avec `run_id`)     |
+| `ingest_telemetry` | Charge `data/telemetry.csv` → table `raw_telemetry`                              |
+| `ingest_incidents` | Charge le CSV anonymisé → table `raw_incidents` + rapports dans `artifacts/`     |
+| `bronze_from_raw`  | Construit les tables `bronze_*` : normalisation UTC, FK, `bronze_data_valid`     |
 
 ---
 

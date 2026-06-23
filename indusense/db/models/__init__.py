@@ -4,11 +4,12 @@ from indusense.db.models.bronze_maintenance import BronzeMaintenance
 from indusense.db.models.bronze_telemetry import BronzeTelemetry
 from indusense.db.models.incident import Incident
 from indusense.db.models.machine import Machine
+from indusense.db.models.maintenance import Maintenance
 from indusense.db.models.pipeline_run import PipelineRun
 from indusense.db.models.telemetry import Telemetry
 
 __all__ = [
-    "Incident", "Machine", "Telemetry",
+    "Incident", "Machine", "Maintenance", "Telemetry",
     "BronzeIncident", "BronzeMachine", "BronzeMaintenance", "BronzeTelemetry",
     "PipelineRun",
 ]

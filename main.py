@@ -11,13 +11,50 @@ from indusense.ingestor import *
 INCIDENTS_RAW_PATH      = "data/releves_incidents.csv"
 INCIDENTS_ANON_PATH     = "artifacts/releves_incidents.anonymised.csv"
 TELEMETRY_RAW_PATH      = "data/telemetry.csv"
+MACHINE_SQL_PATH        = "data/machine.sql"
 
 COMMANDS = {
     "anonymize":        "Anonymise les opérateurs et écrit artifacts/releves_incidents.anonymised.csv",
+    "ingest_machine":   "Charge data/machine.sql → tables machine + maintenance (avec run_id)",
     "ingest_incidents": "Charge les incidents anonymisés, génère les rapports dans artifacts/",
     "ingest_telemetry": "Charge data/telemetry.csv et insère les données brutes dans raw_telemetry (PostgreSQL)",
     "bronze_from_raw":  "Construit les tables bronze depuis raw (rejouable : TRUNCATE + INSERT, dates UTC, FK machine)",
 }
+
+
+def ingest_machine():
+    if not Path(MACHINE_SQL_PATH).exists():
+        print(f"Fichier introuvable : {MACHINE_SQL_PATH}")
+        sys.exit(1)
+
+    from indusense.db.session import get_engine
+    from indusense.pipeline import ensure_pipeline_runs_table, finalize_run, get_pipeline_tag, resolve_run
+
+    engine = get_engine()
+    ensure_pipeline_runs_table(engine)
+
+    # machine.sql définit son propre schéma — on l'exécute entièrement
+    sql_content = Path(MACHINE_SQL_PATH).read_text()
+    with engine.begin() as conn:
+        conn.execute(text(sql_content))
+
+    # Ajoute run_id si absent, puis le valorise
+    tag = get_pipeline_tag()
+    run_id = resolve_run(engine, layer="raw_machine", tag=tag, params={"source": MACHINE_SQL_PATH})
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE machine ADD COLUMN IF NOT EXISTS run_id INTEGER"))
+        conn.execute(text("ALTER TABLE maintenance ADD COLUMN IF NOT EXISTS run_id INTEGER"))
+        conn.execute(text("UPDATE machine SET run_id = :rid WHERE run_id IS NULL"), {"rid": run_id})
+        conn.execute(text("UPDATE maintenance SET run_id = :rid WHERE run_id IS NULL"), {"rid": run_id})
+
+    n_machine = engine.connect().execute(text("SELECT COUNT(*) FROM machine")).scalar()
+    n_maint   = engine.connect().execute(text("SELECT COUNT(*) FROM maintenance")).scalar()
+    finalize_run(engine, run_id, row_count=n_machine + n_maint)
+
+    print(f"machine             : {n_machine} lignes")
+    print(f"maintenance         : {n_maint} lignes")
+    print(f"[pipeline_runs]     : layer=raw_machine  tag={tag}  run_id={run_id}")
 
 
 def anonymize():
@@ -174,6 +211,8 @@ def main():
 
     if cmd == "anonymize":
         anonymize()
+    elif cmd == "ingest_machine":
+        ingest_machine()
     elif cmd == "ingest_incidents":
         ingest_incidents()
     elif cmd == "ingest_telemetry":

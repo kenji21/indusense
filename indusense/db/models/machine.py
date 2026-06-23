@@ -12,6 +12,7 @@ class Machine(Base):
     __tablename__ = "machine"
 
     machine_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    run_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     commissioning_date: Mapped[date] = mapped_column(Date, nullable=False)
     max_daily_capacity: Mapped[int] = mapped_column(Integer, nullable=False)
     max_hourly_capacity_pieces: Mapped[int] = mapped_column(Integer, nullable=False)
