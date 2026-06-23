@@ -64,13 +64,14 @@ def finalize_run(
     run_id: int,
     row_count: int,
     csv_path: str | None = None,
+    comment: str | None = None,
 ) -> None:
     now = datetime.now(tz=timezone.utc)
     with engine.begin() as conn:
         conn.execute(
             update(PipelineRun)
             .where(PipelineRun.id == run_id)
-            .values(row_count=row_count, csv_path=csv_path, updated_at=now)
+            .values(row_count=row_count, csv_path=csv_path, updated_at=now, comment=comment)
         )
 
 

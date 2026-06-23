@@ -15,8 +15,10 @@ from indusense.pipeline import (
 )
 
 
-def _warn_invalid(df_bad: "pd.DataFrame", table: str, key_col: str) -> None:
-    print(f"\n  [WARN] {table} : {len(df_bad)} ligne(s) ignorée(s) ({key_col} inconnu)")
+def _warn_invalid(warnings: list, df_bad: "pd.DataFrame", table: str, key_col: str) -> None:
+    msg = f"[WARN] {table} : {len(df_bad)} ligne(s) ignorée(s) ({key_col} inconnu)"
+    warnings.append(msg)
+    print(f"\n  {msg}")
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 0):
         print(df_bad.to_string(index=False))
     print()
@@ -54,15 +56,17 @@ def bronze_from_raw() -> None:
         ],
     )
 
+    warnings: list[str] = []
     n_mach = _transform_machine(engine, run_id)
     valid_machines = set(
         pd.read_sql("SELECT machine_code FROM bronze_machine", con=engine)["machine_code"]
     )
-    n_maint = _transform_maintenance(engine, valid_machines, run_id)
-    n_tel, n_tel_invalid = _transform_telemetry(engine, valid_machines, run_id)
-    n_inc, n_inc_invalid = _transform_incidents(engine, valid_machines, run_id)
+    n_maint = _transform_maintenance(engine, valid_machines, run_id, warnings)
+    n_tel, n_tel_invalid = _transform_telemetry(engine, valid_machines, run_id, warnings)
+    n_inc, n_inc_invalid = _transform_incidents(engine, valid_machines, run_id, warnings)
 
-    finalize_run(engine, run_id, row_count=n_mach + n_maint + n_tel + n_inc)
+    comment = "\n".join(warnings) if warnings else None
+    finalize_run(engine, run_id, row_count=n_mach + n_maint + n_tel + n_inc, comment=comment)
 
     print(f"bronze_machine      : {n_mach} lignes")
     print(f"bronze_maintenance  : {n_maint} lignes")
@@ -78,7 +82,7 @@ def _transform_machine(engine, run_id: int) -> int:
     return len(df)
 
 
-def _transform_maintenance(engine, valid_machines: set, run_id: int) -> int:
+def _transform_maintenance(engine, valid_machines: set, run_id: int, warnings: list) -> int:
     df = pd.read_sql("SELECT * FROM maintenance ORDER BY maintenance_at", con=engine)
 
     # Dates → UTC ISO 8601 (déjà TIMESTAMPTZ dans la source, on normalise quand même)
@@ -88,7 +92,7 @@ def _transform_maintenance(engine, valid_machines: set, run_id: int) -> int:
 
     mask_invalid = ~df["machine_code"].isin(valid_machines)
     if mask_invalid.any():
-        _warn_invalid(df[mask_invalid], "maintenance", "machine_code")
+        _warn_invalid(warnings, df[mask_invalid], "maintenance", "machine_code")
     df = df[~mask_invalid]
 
     df["run_id"] = run_id
@@ -96,7 +100,7 @@ def _transform_maintenance(engine, valid_machines: set, run_id: int) -> int:
     return len(df)
 
 
-def _transform_telemetry(engine, valid_machines: set, run_id: int) -> tuple[int, int]:
+def _transform_telemetry(engine, valid_machines: set, run_id: int, warnings: list) -> tuple[int, int]:
     df = pd.read_sql("SELECT * FROM raw_telemetry ORDER BY recorded_at", con=engine)
     df = df.drop(columns=["id"], errors="ignore")
 
@@ -105,7 +109,7 @@ def _transform_telemetry(engine, valid_machines: set, run_id: int) -> tuple[int,
 
     mask_invalid = ~df["machine_id"].isin(valid_machines)
     if mask_invalid.any():
-        _warn_invalid(df[mask_invalid], "telemetry", "machine_id")
+        _warn_invalid(warnings, df[mask_invalid], "telemetry", "machine_id")
     df = df[~mask_invalid]
 
     # Règle : une seule télémétrie par (machine_id, recorded_at)
@@ -118,7 +122,7 @@ def _transform_telemetry(engine, valid_machines: set, run_id: int) -> tuple[int,
     return len(df), int((~df["bronze_data_valid"]).sum())
 
 
-def _transform_incidents(engine, valid_machines: set, run_id: int) -> tuple[int, int]:
+def _transform_incidents(engine, valid_machines: set, run_id: int, warnings: list) -> tuple[int, int]:
     df = pd.read_sql("SELECT * FROM raw_incidents ORDER BY occurred_at", con=engine)
     df = df.drop(columns=["id"], errors="ignore")
 
@@ -127,7 +131,7 @@ def _transform_incidents(engine, valid_machines: set, run_id: int) -> tuple[int,
 
     mask_invalid = ~df["machine_id"].isin(valid_machines)
     if mask_invalid.any():
-        _warn_invalid(df[mask_invalid], "incidents", "machine_id")
+        _warn_invalid(warnings, df[mask_invalid], "incidents", "machine_id")
     df = df[~mask_invalid]
 
     # Règle : severity doit être entre 1 et 5 inclus

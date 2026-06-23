@@ -92,7 +92,13 @@ def ingest_incidents():
         conn.execute(text("TRUNCATE TABLE raw_incidents RESTART IDENTITY"))
     df_db["run_id"] = run_id
     df_db.to_sql("raw_incidents", con=engine, if_exists="append", index=False)
-    finalize_run(engine, run_id, row_count=len(df_db))
+
+    warnings = []
+    if (d := int(df_db.duplicated().sum())):
+        warnings.append(f"[WARN] {d} doublon(s) détecté(s)")
+    if (n := int(df_db.isnull().sum().sum())):
+        warnings.append(f"[WARN] {n} valeur(s) NaN détectée(s)")
+    finalize_run(engine, run_id, row_count=len(df_db), comment="\n".join(warnings) or None)
     print(f"{len(df_db)} lignes insérées dans raw_incidents.")
     print(f"[pipeline_runs]     : layer=raw_incidents  tag={tag}  run_id={run_id}")
 
@@ -201,7 +207,13 @@ def ingest_telemetry():
         conn.execute(text("TRUNCATE TABLE raw_telemetry RESTART IDENTITY"))
     df_db["run_id"] = run_id
     df_db.to_sql("raw_telemetry", con=engine, if_exists="append", index=False)
-    finalize_run(engine, run_id, row_count=len(df_db))
+
+    warnings = []
+    if (d := int(df_db.duplicated().sum())):
+        warnings.append(f"[WARN] {d} doublon(s) détecté(s)")
+    if (n := int(df_db.isnull().sum().sum())):
+        warnings.append(f"[WARN] {n} valeur(s) NaN détectée(s)")
+    finalize_run(engine, run_id, row_count=len(df_db), comment="\n".join(warnings) or None)
     print(f"\n{len(df_db)} lignes insérées dans raw_telemetry.")
     print(f"[pipeline_runs]     : layer=raw_telemetry  tag={tag}  run_id={run_id}")
 

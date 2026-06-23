@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Integer, JSON, String, Text, UniqueConstraint
 
 from indusense.db.base import Base
 
@@ -16,3 +16,4 @@ class PipelineRun(Base):
     row_count  = Column(Integer)
     params     = Column(JSON)
     csv_path   = Column(String(256))
+    comment    = Column(Text)

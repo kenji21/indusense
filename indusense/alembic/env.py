@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from indusense.db.base import Base
 from indusense.db.models import Incident, Telemetry  # noqa: F401 — enregistrement des modèles
+from indusense.db.models.pipeline_run import PipelineRun  # noqa: F401
 
 load_dotenv()
 
