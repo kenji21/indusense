@@ -19,6 +19,7 @@ COMMANDS = {
     "ingest_incidents": "Charge les incidents anonymisés, génère les rapports dans artifacts/",
     "ingest_telemetry": "Charge data/telemetry.csv et insère les données brutes dans raw_telemetry (PostgreSQL)",
     "bronze_from_raw":  "Construit les tables bronze depuis raw (rejouable : TRUNCATE + INSERT, dates UTC, FK machine)",
+    "silver_from_bronze": "Construit silver_telemetry : déduplication + normalisation °F→°C",
 }
 
 
@@ -176,6 +177,11 @@ def bronze_from_raw_cmd():
     bronze_from_raw()
 
 
+def silver_from_bronze_cmd():
+    from indusense.silver import silver_from_bronze
+    silver_from_bronze()
+
+
 def ingest_telemetry():
     if not Path(TELEMETRY_RAW_PATH).exists():
         print(f"Fichier introuvable : {TELEMETRY_RAW_PATH}")
@@ -231,6 +237,8 @@ def main():
         ingest_telemetry()
     elif cmd == "bronze_from_raw":
         bronze_from_raw_cmd()
+    elif cmd == "silver_from_bronze":
+        silver_from_bronze_cmd()
     else:
         print("Usage: python main.py <commande>")
         print("\nCommandes disponibles :")
